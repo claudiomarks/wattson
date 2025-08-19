@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Battery Dashboard</title>
+  <script>
+    async function updateBattery() {
+      const res = await fetch('/api/battery');
+      const data = await res.json();
+      document.getElementById('percent').innerText = data.percent + "%";
+      document.getElementById('status').innerText = data.charging ? "⚡ Charging" : "🔋 Discharging";
+      if (data.secsleft > 0) {
+        document.getElementById('time').innerText = Math.round(data.secsleft / 60) + " min left";
+      } else {
+        document.getElementById('time').innerText = "Calculating...";
+      }
+    }
+    setInterval(updateBattery, 5000);
+    window.onload = updateBattery;
+  </script>
+</head>
+<body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
+  <h1>🔋 Battery Dashboard</h1>
+  <p><b>Level:</b> <span id="percent"></span></p>
+  <p><b>Status:</b> <span id="status"></span></p>
+  <p><b>Time Remaining:</b> <span id="time"></span></p>
+</body>
+</html>

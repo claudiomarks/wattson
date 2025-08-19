@@ -1,0 +1,10 @@
+version: "3.8"
+services:
+  battery-dashboard:
+    build: .
+    container_name: battery-dashboard
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
