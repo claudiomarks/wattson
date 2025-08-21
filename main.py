@@ -23,6 +23,31 @@ last_status = {
     "charging": None
 }
 
+def get_battery_temperature():
+    """Get battery temperature if available."""
+    try:
+        temps = psutil.sensors_temperatures()
+        # Try common battery temperature sensor names
+        for name, sensors in temps.items():
+            if 'bat' in name.lower() or 'battery' in name.lower():
+                for sensor in sensors:
+                    return round(sensor.current, 1)
+        
+        # Fallback: try ACPI thermal zones which might include battery
+        if 'acpi_thermal_zone' in temps:
+            for sensor in temps['acpi_thermal_zone']:
+                if 'battery' in sensor.label.lower() or 'bat' in sensor.label.lower():
+                    return round(sensor.current, 1)
+        
+        # If no specific battery temp found, try coretemp as fallback
+        if 'coretemp' in temps and temps['coretemp']:
+            return round(temps['coretemp'][0].current, 1)
+            
+    except Exception as e:
+        logging.debug(f"Could not get battery temperature: {e}")
+    
+    return None
+
 def battery_monitor():
     """Background thread that logs battery events."""
     global last_status
@@ -55,10 +80,13 @@ async def dashboard(request: Request):
 @app.get("/api/battery")
 def battery_status():
     battery = psutil.sensors_battery()
+    temperature = get_battery_temperature()
+    
     return {
         "percent": battery.percent,
         "charging": battery.power_plugged,
-        "secsleft": battery.secsleft
+        "secsleft": battery.secsleft,
+        "temperature": temperature
     }
 
 if __name__ == "__main__":

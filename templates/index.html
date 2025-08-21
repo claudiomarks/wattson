@@ -1,27 +1,260 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Battery Dashboard</title>
-  <script>
-    async function updateBattery() {
-      const res = await fetch('/api/battery');
-      const data = await res.json();
-      document.getElementById('percent').innerText = data.percent + "%";
-      document.getElementById('status').innerText = data.charging ? "⚡ Charging" : "🔋 Discharging";
-      if (data.secsleft > 0) {
-        document.getElementById('time').innerText = Math.round(data.secsleft / 60) + " min left";
-      } else {
-        document.getElementById('time').innerText = "Calculating...";
+  <title>🔋 Battery Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+      color: white;
+    }
+    
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    h1 {
+      text-align: center;
+      margin-bottom: 40px;
+      font-size: 2.5em;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+    
+    .battery-info {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    
+    .battery-percent {
+      font-size: 3em;
+      font-weight: bold;
+      margin: 10px 0;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+    
+    .battery-bar-container {
+      width: 100%;
+      height: 40px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 20px;
+      overflow: hidden;
+      margin: 20px 0;
+      position: relative;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+    
+    .battery-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #ff4757 0%, #ffa502 50%, #2ed573 100%);
+      border-radius: 20px;
+      transition: width 0.5s ease-in-out;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .battery-bar::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+      animation: shimmer 2s infinite;
+    }
+    
+    @keyframes shimmer {
+      0% { left: -100%; }
+      100% { left: 100%; }
+    }
+    
+    .status-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 30px;
+    }
+    
+    .status-card {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 15px;
+      padding: 20px;
+      text-align: center;
+      backdrop-filter: blur(5px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .status-icon {
+      font-size: 2em;
+      margin-bottom: 10px;
+    }
+    
+    .status-label {
+      font-size: 0.9em;
+      opacity: 0.8;
+      margin-bottom: 5px;
+    }
+    
+    .status-value {
+      font-size: 1.2em;
+      font-weight: bold;
+    }
+    
+    .temperature-card {
+      grid-column: span 2;
+    }
+    
+    .charging-indicator {
+      display: inline-block;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .low-battery {
+      animation: blink 1s infinite;
+    }
+    
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0.5; }
+    }
+    
+    @media (max-width: 480px) {
+      .container {
+        padding: 20px;
+        margin: 10px;
+      }
+      
+      h1 {
+        font-size: 2em;
+      }
+      
+      .battery-percent {
+        font-size: 2.5em;
+      }
+      
+      .status-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .temperature-card {
+        grid-column: span 1;
       }
     }
+  </style>
+  <script>
+    function formatTime(seconds) {
+      if (seconds <= 0 || seconds === -1) return "Calculando...";
+      
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      
+      if (hours > 0) {
+        return `${hours}h${minutes.toString().padStart(2, '0')}min`;
+      } else {
+        return `${minutes}min`;
+      }
+    }
+    
+    async function updateBattery() {
+      try {
+        const res = await fetch('/api/battery');
+        const data = await res.json();
+        
+        // Update percentage
+        const percentEl = document.getElementById('percent');
+        percentEl.innerText = data.percent + "%";
+        
+        // Update battery bar
+        const batteryBar = document.getElementById('battery-bar');
+        batteryBar.style.width = data.percent + "%";
+        
+        // Add low battery warning
+        if (data.percent <= 20 && !data.charging) {
+          percentEl.classList.add('low-battery');
+          batteryBar.style.background = '#ff4757';
+        } else {
+          percentEl.classList.remove('low-battery');
+          batteryBar.style.background = 'linear-gradient(90deg, #ff4757 0%, #ffa502 50%, #2ed573 100%)';
+        }
+        
+        // Update status
+        const statusEl = document.getElementById('status');
+        const chargingIcon = data.charging ? '⚡' : '🔋';
+        const chargingText = data.charging ? 'Carregando' : 'Descarregando';
+        statusEl.innerHTML = `<span class="${data.charging ? 'charging-indicator' : ''}">${chargingIcon}</span> ${chargingText}`;
+        
+        // Update time remaining
+        const timeEl = document.getElementById('time');
+        timeEl.innerText = formatTime(data.secsleft);
+        
+        // Update temperature
+        const tempEl = document.getElementById('temperature');
+        if (data.temperature !== null) {
+          tempEl.innerText = `${data.temperature}°C`;
+          tempEl.parentElement.style.display = 'block';
+        } else {
+          tempEl.parentElement.style.display = 'none';
+        }
+        
+      } catch (error) {
+        console.error('Erro ao buscar dados da bateria:', error);
+      }
+    }
+    
+    // Update every 5 seconds
     setInterval(updateBattery, 5000);
+    
+    // Update on page load
     window.onload = updateBattery;
   </script>
 </head>
-<body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
-  <h1>🔋 Battery Dashboard</h1>
-  <p><b>Level:</b> <span id="percent"></span></p>
-  <p><b>Status:</b> <span id="status"></span></p>
-  <p><b>Time Remaining:</b> <span id="time"></span></p>
+<body>
+  <div class="container">
+    <h1>🔋 Battery Dashboard</h1>
+    
+    <div class="battery-info">
+      <div class="battery-percent" id="percent">--</div>
+      
+      <div class="battery-bar-container">
+        <div class="battery-bar" id="battery-bar"></div>
+      </div>
+    </div>
+    
+    <div class="status-grid">
+      <div class="status-card">
+        <div class="status-icon" id="status-icon">🔋</div>
+        <div class="status-label">Status</div>
+        <div class="status-value" id="status">Carregando...</div>
+      </div>
+      
+      <div class="status-card">
+        <div class="status-icon">⏰</div>
+        <div class="status-label">Tempo Restante</div>
+        <div class="status-value" id="time">Calculando...</div>
+      </div>
+      
+      <div class="status-card temperature-card">
+        <div class="status-icon">🌡️</div>
+        <div class="status-label">Temperatura</div>
+        <div class="status-value" id="temperature">--°C</div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
