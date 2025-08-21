@@ -83,7 +83,7 @@ def battery_status():
     temperature = get_battery_temperature()
     
     return {
-        "percent": battery.percent,
+        "percent": round(battery.percent),
         "charging": battery.power_plugged,
         "secsleft": battery.secsleft,
         "temperature": temperature
