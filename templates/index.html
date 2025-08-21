@@ -74,6 +74,16 @@
       animation: shimmer 2s infinite;
     }
     
+    .charge-limit-indicator {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      width: 2px;
+      background: rgba(255, 255, 255, 0.8);
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
+      z-index: 10;
+    }
+    
     @keyframes shimmer {
       0% { left: -100%; }
       100% { left: 100%; }
@@ -115,6 +125,79 @@
       grid-column: span 2;
     }
     
+    .charge-limit-card {
+      grid-column: span 2;
+    }
+    
+    .charge-limit-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 15px;
+      flex-wrap: wrap;
+    }
+    
+    .charge-limit-input {
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: white;
+      font-size: 1em;
+      width: 80px;
+      text-align: center;
+    }
+    
+    .charge-limit-input::placeholder {
+      color: rgba(255, 255, 255, 0.6);
+    }
+    
+    .btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      padding: 8px 16px;
+      color: white;
+      cursor: pointer;
+      font-size: 0.9em;
+      transition: all 0.3s ease;
+    }
+    
+    .btn:hover {
+      background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+      transform: translateY(-2px);
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .preset-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 10px;
+    }
+    
+    .preset-btn {
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 20px;
+      padding: 5px 12px;
+      color: white;
+      cursor: pointer;
+      font-size: 0.8em;
+      transition: all 0.3s ease;
+    }
+    
+    .preset-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
     .charging-indicator {
       display: inline-block;
       animation: pulse 2s infinite;
@@ -132,6 +215,30 @@
     @keyframes blink {
       0%, 50% { opacity: 1; }
       51%, 100% { opacity: 0.5; }
+    }
+    
+    .alert {
+      background: rgba(255, 215, 0, 0.2);
+      border: 1px solid rgba(255, 215, 0, 0.5);
+      border-radius: 10px;
+      padding: 10px;
+      margin: 10px 0;
+      text-align: center;
+      font-size: 0.9em;
+    }
+    
+    .success {
+      background: rgba(46, 213, 115, 0.2);
+      border-color: rgba(46, 213, 115, 0.5);
+    }
+    
+    .error {
+      background: rgba(255, 71, 87, 0.2);
+      border-color: rgba(255, 71, 87, 0.5);
+    }
+    
+    .not-supported {
+      opacity: 0.6;
     }
     
     @media (max-width: 480px) {
@@ -152,12 +259,19 @@
         grid-template-columns: 1fr;
       }
       
-      .temperature-card {
+      .temperature-card, .charge-limit-card {
         grid-column: span 1;
+      }
+      
+      .charge-limit-controls {
+        flex-direction: column;
+        align-items: stretch;
       }
     }
   </style>
   <script>
+    let chargeLimitSupported = false;
+    
     function formatTime(seconds) {
       if (seconds <= 0 || seconds === -1) return "Calculando...";
       
@@ -171,10 +285,48 @@
       }
     }
     
+    function showAlert(message, type = 'alert') {
+      const alertDiv = document.createElement('div');
+      alertDiv.className = `alert ${type}`;
+      alertDiv.textContent = message;
+      
+      const container = document.querySelector('.container');
+      container.insertBefore(alertDiv, container.firstChild.nextSibling);
+      
+      setTimeout(() => {
+        alertDiv.remove();
+      }, 5000);
+    }
+    
+    async function setChargeLimit(limit) {
+      try {
+        const response = await fetch('/api/charge-limit', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ limit: parseInt(limit) })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          showAlert(data.message, 'success');
+          updateBattery(); // Refresh data
+        } else {
+          const error = await response.json();
+          showAlert(`Erro: ${error.detail}`, 'error');
+        }
+      } catch (error) {
+        showAlert(`Erro de conexão: ${error.message}`, 'error');
+      }
+    }
+    
     async function updateBattery() {
       try {
         const res = await fetch('/api/battery');
         const data = await res.json();
+        
+        chargeLimitSupported = data.charge_limit_supported;
         
         // Update percentage
         const percentEl = document.getElementById('percent');
@@ -183,6 +335,27 @@
         // Update battery bar
         const batteryBar = document.getElementById('battery-bar');
         batteryBar.style.width = data.percent + "%";
+        
+        // Show charge limit indicator if supported
+        const chargeLimitIndicator = document.getElementById('charge-limit-indicator');
+        if (data.charge_limit && data.charge_limit_supported) {
+          chargeLimitIndicator.style.left = data.charge_limit + "%";
+          chargeLimitIndicator.style.display = 'block';
+          
+          // Update current limit display
+          document.getElementById('current-limit').textContent = data.charge_limit + "%";
+        } else {
+          chargeLimitIndicator.style.display = 'none';
+          document.getElementById('current-limit').textContent = "N/A";
+        }
+        
+        // Update charge limit controls
+        const chargeLimitCard = document.getElementById('charge-limit-card');
+        if (data.charge_limit_supported) {
+          chargeLimitCard.classList.remove('not-supported');
+        } else {
+          chargeLimitCard.classList.add('not-supported');
+        }
         
         // Add low battery warning
         if (data.percent <= 20 && !data.charging) {
@@ -233,6 +406,7 @@
       
       <div class="battery-bar-container">
         <div class="battery-bar" id="battery-bar"></div>
+        <div class="charge-limit-indicator" id="charge-limit-indicator"></div>
       </div>
     </div>
     
@@ -253,6 +427,40 @@
         <div class="status-icon">🌡️</div>
         <div class="status-label">Temperatura</div>
         <div class="status-value" id="temperature">--°C</div>
+      </div>
+      
+      <div class="status-card charge-limit-card" id="charge-limit-card">
+        <div class="status-icon">⚙️</div>
+        <div class="status-label">Limite de Carga</div>
+        <div class="status-value" id="current-limit">--</div>
+        
+        <div class="charge-limit-controls">
+          <input type="number" 
+                 id="limit-input" 
+                 class="charge-limit-input" 
+                 placeholder="80" 
+                 min="20" 
+                 max="100">
+          <button class="btn" onclick="
+            const limit = document.getElementById('limit-input').value;
+            if (limit && limit >= 20 && limit <= 100) {
+              setChargeLimit(limit);
+            } else {
+              showAlert('Digite um valor entre 20 e 100', 'error');
+            }
+          ">Aplicar</button>
+        </div>
+        
+        <div class="preset-buttons">
+          <button class="preset-btn" onclick="setChargeLimit(60)">60%</button>
+          <button class="preset-btn" onclick="setChargeLimit(80)">80%</button>
+          <button class="preset-btn" onclick="setChargeLimit(90)">90%</button>
+          <button class="preset-btn" onclick="setChargeLimit(100)">100%</button>
+        </div>
+        
+        <div style="font-size: 0.8em; margin-top: 10px; opacity: 0.8;">
+          <span id="support-status">Verificando suporte...</span>
+        </div>
       </div>
     </div>
   </div>
