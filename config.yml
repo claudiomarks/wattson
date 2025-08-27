@@ -1,0 +1,24 @@
+# Wattson Enhanced Configuration
+
+# Battery settings
+battery_device: "BAT0"  # Your battery device (BAT0, BAT1, etc.)
+max_charge: 80          # Maximum charge threshold (%)
+min_charge: 20          # Minimum charge threshold (%)
+check_interval: 30      # Seconds between monitoring checks
+
+# Actions
+action_on_low: "log"    # Action when battery is low: "log", "notify", "shutdown"
+
+# Logging
+log_level: "INFO"       # DEBUG, INFO, WARNING, ERROR
+
+# API Server settings
+api_host: "0.0.0.0"     # API server host (0.0.0.0 for all interfaces)
+api_port: 5000          # API server port
+
+# Power monitoring settings
+enable_power_monitoring: true
+power_check_interval: 5  # Seconds between power measurements (for history)
+
+# History settings
+max_history_entries: 2880  # ~24 hours of 30-second intervals
